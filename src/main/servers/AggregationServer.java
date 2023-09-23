@@ -55,7 +55,7 @@ public class AggregationServer {
         printMessage("Server accepting connections...");
         clientThread = new Thread(this::acceptClient);
         clientThread.start();
-        processClientRequest();
+        handleClient();
     }
 
     /**
@@ -89,7 +89,7 @@ public class AggregationServer {
      * request queue, processes their
      * requests, and sends back responses until the server is shut down.
      */
-    private void processClientRequest() {
+    private void handleClient() {
         try {
             while (true) {
                 Socket clientSocket = requestQueue.poll(2000, TimeUnit.MILLISECONDS);
@@ -124,14 +124,14 @@ public class AggregationServer {
      */
     public String handleClientRequest(String requestData) {
         String[] lines = requestData.split("\r\n");
-        String requestType = getRequestType(lines);
+        String type = getRequestType(lines);
 
         Map<String, String> headers = parseHeaders(lines);
         String content = extractContent(lines);
 
-        if (requestType.equalsIgnoreCase("GET")) {
+        if (type.equalsIgnoreCase("GET")) {
             return handleGetRequest(headers);
-        } else if (requestType.equalsIgnoreCase("PUT")) {
+        } else if (type.equalsIgnoreCase("PUT")) {
             return handlePutRequest(headers, content);
         } else {
             return "400 Bad Request";
@@ -157,8 +157,17 @@ public class AggregationServer {
         if (lamportTime > latestPutTimestamp) {
             mostRecentStationId = stationId;
         }
-        WeatherData newData = new WeatherData(weatherDataJSON, lamportTime, serverId);
-        weatherDataMap.computeIfAbsent(stationId, k -> new PriorityQueue<>()).add(newData);
+        WeatherData weatherData = new WeatherData(weatherDataJSON, lamportTime, serverId);
+        // Check if the weatherDataMap contains an entry for the stationId.
+        if (!weatherDataMap.containsKey(stationId)) {
+            // If not, create a new PriorityQueue for the stationId.
+            PriorityQueue<WeatherData> stationQueue = new PriorityQueue<>();
+            weatherDataMap.put(stationId, stationQueue);
+        }
+
+        // Add the weatherData to the PriorityQueue for the stationId.
+        weatherDataMap.get(stationId).add(weatherData);
+
         return true;
     }
 
@@ -251,7 +260,7 @@ public class AggregationServer {
                 .filter(data -> data.getTimestamp() <= lamportTime)
                 .findFirst();
 
-        if (weatherData.isPresent()) {
+        if (!weatherData.isPresent()) {
             return "404 Data Not Found";
         }
 
