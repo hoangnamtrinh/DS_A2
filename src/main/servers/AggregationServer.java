@@ -37,6 +37,11 @@ public class AggregationServer {
         this.lamportClock = new LamportClock();
     }
 
+    /**
+     * Starts the aggregation server on the specified port.
+     *
+     * @param portNumber The port number on which the server should listen.
+     */
     public void start(int portNumber) {
         // Start server
         printMessage("Starting server...");
@@ -53,6 +58,9 @@ public class AggregationServer {
         processClientRequest();
     }
 
+    /**
+     * Accepts incoming client connections and adds them to a queue for processing.
+     */
     private void acceptClient() {
         while (!Thread.currentThread().isInterrupted()) {
             try {
@@ -74,6 +82,13 @@ public class AggregationServer {
         }
     }
 
+    /**
+     * Processes client requests by dequeuing client sockets, handling their
+     * requests, and sending responses.
+     * This method continuously checks for incoming client connections in the
+     * request queue, processes their
+     * requests, and sends back responses until the server is shut down.
+     */
     private void processClientRequest() {
         try {
             while (true) {
@@ -100,6 +115,13 @@ public class AggregationServer {
         }
     }
 
+    /**
+     * Handles incoming client requests by parsing the request type and delegating
+     * to appropriate handlers.
+     *
+     * @param requestData The raw HTTP request data received from the client.
+     * @return The HTTP response to be sent back to the client.
+     */
     public String handleClientRequest(String requestData) {
         String[] lines = requestData.split("\r\n");
         String requestType = getRequestType(lines);
@@ -116,6 +138,14 @@ public class AggregationServer {
         }
     }
 
+    /**
+     * Adds weather data to the server's data store.
+     *
+     * @param weatherDataJSON The JSON representation of weather data to be added.
+     * @param lamportTime     The Lamport timestamp associated with the data.
+     * @param serverId        The ID of the server sending the data.
+     * @return true if the data is successfully added, false otherwise.
+     */
     public boolean storeWeatherData(JSONObject weatherDataJSON, int lamportTime, String serverId) {
         String stationId = extractStationId(weatherDataJSON);
         System.out.println("StationId test: " + stationId);
@@ -132,14 +162,32 @@ public class AggregationServer {
         return true;
     }
 
+    /**
+     * Extracts the station ID from the provided weather data JSON.
+     *
+     * @param weatherDataJSON The JSON representation of weather data.
+     * @return The extracted station ID or null if not found.
+     */
     private String extractStationId(JSONObject weatherDataJSON) {
         return weatherDataJSON.optString("id", null);
     }
-
+    
+    /**
+     * Extracts the HTTP request type (e.g., GET or PUT) from the request lines.
+     *
+     * @param lines The lines of the HTTP request.
+     * @return The HTTP request type (GET or PUT).
+     */
     private String getRequestType(String[] lines) {
         return lines[0].split(" ")[0].trim();
     }
 
+    /**
+     * Parses HTTP headers from the request lines and stores them in a map.
+     *
+     * @param lines The lines of the HTTP request.
+     * @return A map containing parsed HTTP headers.
+     */
     private Map<String, String> parseHeaders(String[] lines) {
         Map<String, String> headers = new HashMap<>();
         boolean isReading = false;
@@ -157,6 +205,12 @@ public class AggregationServer {
         return headers;
     }
 
+    /**
+     * Extracts the content/body of the HTTP request.
+     *
+     * @param lines The lines of the HTTP request.
+     * @return The content/body of the HTTP request.
+     */
     private String extractContent(String[] lines) {
         StringBuilder contentBuilder = new StringBuilder();
         boolean isReading = false;
@@ -171,6 +225,13 @@ public class AggregationServer {
         return contentBuilder.toString();
     }
 
+    /**
+     * Handles GET requests by returning weather data based on the Lamport timestamp
+     * and station ID.
+     *
+     * @param headers The HTTP headers of the GET request.
+     * @return The HTTP response containing weather data or an error message.
+     */
     private String handleGetRequest(Map<String, String> headers) {
         int lamportTime = Integer.parseInt(headers.getOrDefault("LamportClock", "0"));
         lamportClock.receiveLCTime(lamportTime);
@@ -197,6 +258,13 @@ public class AggregationServer {
         return targetData.get().getWeatherData().toString();
     }
 
+    /**
+     * Handles PUT requests by adding weather data to the server's data store.
+     *
+     * @param headers The HTTP headers of the PUT request.
+     * @param content The content/body of the PUT request containing weather data.
+     * @return The HTTP response indicating the success or failure of the operation.
+     */
     private String handlePutRequest(Map<String, String> headers, String content) {
         int lamportTime = Integer.parseInt(headers.getOrDefault("LamportClock", "0"));
         System.out.println("Tesst LP" + lamportTime);
@@ -221,6 +289,13 @@ public class AggregationServer {
         }
     }
 
+    /**
+     * Parses the port number from command-line arguments or uses the default port
+     * if none is provided.
+     *
+     * @param args The command-line arguments provided when starting the server.
+     * @return The parsed port number.
+     */
     private static int parsePortFromArgs(String[] args) {
         if (args.length > 0) {
             return Integer.parseInt(args[0]);
@@ -228,6 +303,11 @@ public class AggregationServer {
         return DEFAULT_PORT;
     }
 
+    /**
+     * Prints a message to the console.
+     *
+     * @param message The message to be printed.
+     */
     private void printMessage(String message) {
         System.out.println(message);
     }
