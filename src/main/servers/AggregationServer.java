@@ -171,7 +171,7 @@ public class AggregationServer {
     private String extractStationId(JSONObject weatherDataJSON) {
         return weatherDataJSON.optString("id", null);
     }
-    
+
     /**
      * Extracts the HTTP request type (e.g., GET or PUT) from the request lines.
      *
@@ -247,15 +247,15 @@ public class AggregationServer {
             return "404 Data Not Found";
         }
 
-        Optional<WeatherData> targetData = weatherDataQueue.stream()
+        Optional<WeatherData> weatherData = weatherDataQueue.stream()
                 .filter(data -> data.getTimestamp() <= lamportTime)
                 .findFirst();
 
-        if (targetData.isEmpty()) {
+        if (weatherData.isPresent()) {
             return "404 Data Not Found";
         }
 
-        return targetData.get().getWeatherData().toString();
+        return weatherData.get().getWeatherData().toString();
     }
 
     /**
