@@ -7,9 +7,7 @@ import java.net.SocketTimeoutException;
 
 public class SocketServiceImpl implements SocketService {
     private ServerSocket serverSocket;
-    private Socket clientSocket;
     private PrintWriter out;
-    private BufferedReader in;
 
     @Override
     public void startServer(int portNumber) throws IOException {
@@ -18,7 +16,7 @@ public class SocketServiceImpl implements SocketService {
     }
 
     @Override
-    public Socket acceptConnection() throws IOException {
+    public Socket acceptConnectionFromClient() throws IOException {
         if (serverSocket == null) {
             throw new IOException("Server socket is not initialized.");
         }
@@ -83,42 +81,6 @@ public class SocketServiceImpl implements SocketService {
     public void sendResponseToClient(String response, Socket clientSocket) throws IOException {
         out = new PrintWriter(clientSocket.getOutputStream(), true);
         out.println(response);
-    }
-
-    @Override
-    public String sendDataToServer(String serverName, int portNumber, String data) throws IOException {
-        if (clientSocket == null || clientSocket.isClosed()) {
-            // Create a client socket and initialize input and output streams.
-            clientSocket = new Socket(serverName, portNumber);
-            out = new PrintWriter(clientSocket.getOutputStream(), true);
-            in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-        }
-
-        // Send data to the server.
-        out.println(data);
-
-        StringBuilder response = new StringBuilder();
-        String line;
-        while ((line = in.readLine()) != null && !line.isEmpty()) {
-            response.append(line).append("\n");
-        }
-
-        return response.toString();
-    }
-
-    @Override
-    public void closeClient() {
-        try {
-            // Close input, output streams, and the client socket.
-            if (in != null)
-                in.close();
-            if (out != null)
-                out.close();
-            if (clientSocket != null)
-                clientSocket.close();
-        } catch (IOException e) {
-            System.err.println("IO Error: An IO Exception occurred - " + e.getMessage());
-        }
     }
 
     @Override

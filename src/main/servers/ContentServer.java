@@ -1,20 +1,25 @@
 package main.servers;
 
-import org.json.JSONObject;
-import main.helpers.JSONParser;
-import main.services.SocketService;
-import main.services.SocketServiceImpl;
-
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
+import main.helpers.JSONParser;
+import main.services.SocketService;
+import main.services.SocketServiceImpl;
+import org.json.JSONObject;
 
 public class ContentServer {
     private final String contentServerId;
-    private final SocketService socketService;
     private JSONObject data;
+    private Socket clientSocket;
+    private PrintWriter out;
+    private BufferedReader in;
 
     /**
      * Constructor for the ContentServer class.
@@ -23,7 +28,6 @@ public class ContentServer {
      */
     public ContentServer(SocketService socketService) {
         this.contentServerId = UUID.randomUUID().toString();
-        this.socketService = socketService;
     }
 
     public static void main(String[] args) {
@@ -57,10 +61,6 @@ public class ContentServer {
         }
 
         sendPutRequest(serverName, portNumber);
-
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            socketService.closeClient();
-        }));
     }
 
     /**
@@ -96,18 +96,38 @@ public class ContentServer {
             JSONObject jsonData = new JSONObject(data.toString());
             jsonData.put("ServerID", contentServerId);
 
-            String putRequest = buildPutRequest(serverName, jsonData);
+            clientSocket = new Socket(serverName, portNumber);
+            out = new PrintWriter(clientSocket.getOutputStream(), true);
+            in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            String serverLC = in.readLine();
+            int timestamp = Integer.parseInt(serverLC);
 
-            String response = socketService.sendDataToServer(serverName, portNumber, putRequest);
+            // Send request to the server
+            String putRequest = buildPutRequest(serverName, jsonData, timestamp);
+            out.println(putRequest);
+
+            String response = receiveResponseFromServer(in);
 
             if (response != null && (response.contains("200 OK") || response.contains("201 OK"))) {
                 System.out.println("Weather data sent to server.");
             } else {
                 System.err.println("Error when sending weather data to server: " + response);
             }
+
+            closeClient(in, out, clientSocket);
         } catch (Exception e) {
             System.err.println("Server error: " + e.getMessage());
         }
+    }
+
+    private String receiveResponseFromServer(BufferedReader in) throws IOException {
+        StringBuilder response = new StringBuilder();
+        String line;
+        while ((line = in.readLine()) != null && !line.isEmpty()) {
+            response.append(line).append("\n");
+        }
+
+        return response.toString();
     }
 
     /**
@@ -130,12 +150,27 @@ public class ContentServer {
      * @param jsonData   The weather data as a JSON object.
      * @return The PUT request string.
      */
-    private String buildPutRequest(String serverName, JSONObject jsonData) {
+    private String buildPutRequest(String serverName, JSONObject jsonData, int timeStamp) {
         return String.format("PUT /uploadData HTTP/1.1\r\n" +
-                "ServerID: %s\r\n" +
+                "ServerId: %s\r\n" +
+                "LamportClock: %d\r\n" +
                 "Content-Type: application/json\r\n" +
                 "Content-Length: %d\r\n" +
                 "\r\n" +
-                "%s", contentServerId, jsonData.toString().length(), jsonData);
+                "%s", contentServerId, timeStamp, jsonData.toString().length(), jsonData);
+    }
+
+    public void closeClient(BufferedReader in, PrintWriter out, Socket clienSocket) {
+        try {
+            // Close input, output streams, and the client socket.
+            if (in != null)
+                in.close();
+            if (out != null)
+                out.close();
+            if (clientSocket != null)
+                clientSocket.close();
+        } catch (IOException e) {
+            System.err.println("IO Error: An IO Exception occurred - " + e.getMessage());
+        }
     }
 }

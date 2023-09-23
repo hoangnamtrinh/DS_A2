@@ -1,32 +1,31 @@
 package main.servers;
 
-import main.services.SocketService;
-import main.services.SocketServiceImpl;
-import main.helpers.LamportClock;
 import main.helpers.JSONParser;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.Socket;
+import java.util.UUID;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
-import java.io.IOException;
-import java.util.UUID;
-
 public class GETClient {
     private final String serverID;
-    private final SocketService socketService;
-    private final LamportClock lamportClock;
+    private Socket clientSocket;
+    private PrintWriter out;
+    private BufferedReader in;
 
-    public GETClient(SocketService socketService) {
+    public GETClient() {
         this.serverID = UUID.randomUUID().toString();
-        this.socketService = socketService;
-        this.lamportClock = new LamportClock();
     }
 
     public static void main(String[] args) {
         try {
-            if (args.length < 2) {
-                System.out.println("Insufficient arguments. Usage: GETClient <serverName>:<portNumber> <stationId>");
+            if (args.length < 1) {
+                System.out.println("Insufficient arguments. Usage: GETClient <serverName>:<portNumber> [<stationId>]");
                 return;
             }
 
@@ -35,18 +34,17 @@ public class GETClient {
             String serverName = serverNameAndPort[0];
             int portNumber = Integer.parseInt(serverNameAndPort[1]);
             String stationId = null;
-            if (args.length == 3) {
-                stationId = args[2];
+            if (args.length == 2) {
+                stationId = args[1];
             }
 
             // Initialise client, send a request to the aggregation server and display the
             // response
-            SocketService socketService = new SocketServiceImpl();
-            GETClient client = new GETClient(socketService);
+            GETClient client = new GETClient();
             GETClientDataResponse response = client.retrieveWeatherData(serverName, portNumber, stationId);
             client.processResponse(response);
 
-            socketService.closeClient();
+            // socketService.closeClient();
         } catch (IOException e) {
             System.err.println("IO Error: An IO Exception occurred - " + e.getMessage());
         } catch (JSONException e) {
@@ -65,7 +63,7 @@ public class GETClient {
         }
 
         if (response.isError()) {
-            System.out.println("Server Error: " + response.getErrorMessage());
+            System.err.println(response.getErrorMessage());
         } else {
             // Convert JSON data to text and display it line by line
             String weatherDataText = JSONParser.jsonToText(response.getData(), false, true);
@@ -78,30 +76,36 @@ public class GETClient {
 
     public GETClientDataResponse retrieveWeatherData(String serverName, int portNumber, String stationId)
             throws IOException, JSONException {
-        int currentTime = lamportClock.sendLCTime();
-        String getRequest = buildGetRequest(this.serverID, currentTime, stationId);
+        // Create a client socket and initialize input and output streams.
+        clientSocket = new Socket(serverName, portNumber);
+        out = new PrintWriter(clientSocket.getOutputStream(), true);
+        in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+        String serverLC = in.readLine();
+        int timestamp = Integer.parseInt(serverLC);
+        String getRequest = buildGetRequest(this.serverID, timestamp, stationId);
 
-        String responseStr = socketService.sendDataToServer(serverName, portNumber, getRequest);
+        // Send request to the server
+        out.println(getRequest);
 
-        if (responseStr.startsWith("500")) {
-            return createErrorResponse(
-                    "Server Error: The server encountered an internal issue while processing the request.");
+        String responseStr = receiveResponseFromServer(in);
+
+        if (responseStr.startsWith("400") || responseStr.startsWith("404") || responseStr.startsWith("500")) {
+            return createErrorResponse(responseStr);
         }
 
         JSONObject jsonObject = parseJsonResponse(responseStr);
-        updateLamportClock(jsonObject);
-
+        closeClient(in, out, clientSocket);
         return createSuccessResponse(jsonObject);
     }
 
     private String buildGetRequest(String serverId, int currentTime, String stationId) {
         StringBuilder getRequestBuilder = new StringBuilder();
         getRequestBuilder.append("GET /weather.json HTTP/1.1\r\n");
-        getRequestBuilder.append("ServerID: ").append(serverId).append("\r\n");
+        getRequestBuilder.append("ServerId: ").append(serverId).append("\r\n");
         getRequestBuilder.append("LamportClock: ").append(currentTime).append("\r\n");
 
         if (stationId != null) {
-            getRequestBuilder.append("StationID: ").append(stationId).append("\r\n");
+            getRequestBuilder.append("StationId: ").append(stationId).append("\r\n");
         }
 
         getRequestBuilder.append("\r\n");
@@ -116,17 +120,33 @@ public class GETClient {
         return new JSONObject(new JSONTokener(responseStr));
     }
 
-    private void updateLamportClock(JSONObject jsonObject) {
-        if (jsonObject.has("LamportClock")) {
-            int receivedLamportClock = jsonObject.getInt("LamportClock");
-            lamportClock.receiveLCTime(receivedLamportClock);
-        }
-    }
-
     private GETClientDataResponse createSuccessResponse(JSONObject jsonObject) {
         return GETClientDataResponse.success(jsonObject);
     }
 
+    public String receiveResponseFromServer(BufferedReader in) throws IOException {
+        StringBuilder response = new StringBuilder();
+        String line;
+        while ((line = in.readLine()) != null && !line.isEmpty()) {
+            response.append(line).append("\n");
+        }
+
+        return response.toString();
+    }
+
+    public void closeClient(BufferedReader in, PrintWriter out, Socket clienSocket) {
+        try {
+            // Close input, output streams, and the client socket.
+            if (in != null)
+                in.close();
+            if (out != null)
+                out.close();
+            if (clientSocket != null)
+                clientSocket.close();
+        } catch (IOException e) {
+            System.err.println("IO Error: An IO Exception occurred - " + e.getMessage());
+        }
+    }
 }
 
 class GETClientDataResponse {

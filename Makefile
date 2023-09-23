@@ -48,4 +48,7 @@ client1: $(CLASSES)
 client2: $(CLASSES)
 	$(JAVA) $(CP_RUN) $(GETCLIENT) localhost:4567 IDS60902
 
+client3: $(CLASSES)
+	$(JAVA) $(CP_RUN) $(GETCLIENT) localhost:4567
+
 .PHONY: clean all

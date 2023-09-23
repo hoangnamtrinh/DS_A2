@@ -24,7 +24,7 @@ public interface SocketService {
      * @return A Socket representing the client connection.
      * @throws IOException If an I/O error occurs while accepting the connection.
      */
-    Socket acceptConnection() throws IOException;
+    Socket acceptConnectionFromClient() throws IOException;
 
     /**
      * Receives data from a client.
@@ -43,22 +43,6 @@ public interface SocketService {
      * @throws IOException
      */
     void sendResponseToClient(String response, Socket clientSocket) throws IOException;
-
-    /**
-     * Sends data to a server and receives a response.
-     *
-     * @param serverName The name of the remote server.
-     * @param portNumber The port number of the remote server.
-     * @param data       The data to send to the server.
-     * @return The received response as a string.
-     * @throws IOException
-     */
-    String sendDataToServer(String serverName, int portNumber, String data) throws IOException;
-
-    /**
-     * Closes the client socket and associated resources.
-     */
-    void closeClient();
 
     /**
      * Closes the server socket.
