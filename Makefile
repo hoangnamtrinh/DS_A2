@@ -21,6 +21,8 @@ AGGREGATION = main.servers.AggregationServer
 CONTENT = main.servers.ContentServer
 GETCLIENT = main.servers.GETClient
 
+$(shell mkdir -p $(BIN_DIR))
+
 # Targets and their actions
 
 all: $(CLASSES)
