@@ -93,4 +93,9 @@ public class SocketServiceImpl implements SocketService {
             System.err.println("IO Error: An IO Exception occurred - " + e.getMessage());
         }
     }
+    
+    @Override
+    public ServerSocket getServerSocket() {
+        return serverSocket;
+    }
 }

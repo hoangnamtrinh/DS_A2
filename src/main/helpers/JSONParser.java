@@ -77,7 +77,7 @@ public class JSONParser {
      */
     public static String jsonToText(JSONObject jsonObject, boolean includeTypes, boolean prettyPrint) {
         if (jsonObject == null) {
-            throw new IllegalArgumentException("Null jsonObject given.");
+            throw new IllegalArgumentException("Null input given.");
         }
 
         StringBuilder stringBuilder = new StringBuilder();

@@ -1,7 +1,7 @@
 package main.servers;
 
 import main.helpers.JSONParser;
-
+import main.helpers.GETClientDataResponse;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -17,9 +17,9 @@ import org.json.JSONTokener;
  */
 public class GETClient {
     private final String serverID;
-    private Socket clientSocket;
-    private PrintWriter out;
-    private BufferedReader in;
+    public Socket clientSocket;
+    public PrintWriter out;
+    public BufferedReader in;
 
     public GETClient() {
         this.serverID = UUID.randomUUID().toString();
@@ -124,7 +124,7 @@ public class GETClient {
      * @param stationId   The station ID (optional).
      * @return The formatted GET request message.
      */
-    private String buildGetRequest(String serverId, int currentTime, String stationId) {
+    public String buildGetRequest(String serverId, int currentTime, String stationId) {
         StringBuilder getRequestBuilder = new StringBuilder();
         getRequestBuilder.append("GET /weather.json HTTP/1.1\r\n");
         getRequestBuilder.append("ServerId: ").append(serverId).append("\r\n");
@@ -144,7 +144,7 @@ public class GETClient {
      * @param errorMessage The error message.
      * @return A GETClientDataResponse object with isError set to true.
      */
-    private GETClientDataResponse createErrorResponse(String errorMessage) {
+    public GETClientDataResponse createErrorResponse(String errorMessage) {
         return GETClientDataResponse.error(errorMessage);
     }
 
@@ -155,7 +155,7 @@ public class GETClient {
      * @return The parsed JSONObject.
      * @throws JSONException If a JSON error occurs during parsing.
      */
-    private JSONObject parseJsonResponse(String responseStr) throws JSONException {
+    public JSONObject parseJsonResponse(String responseStr) throws JSONException {
         return new JSONObject(new JSONTokener(responseStr));
     }
 
@@ -165,7 +165,7 @@ public class GETClient {
      * @param jsonObject The JSON data.
      * @return A GETClientDataResponse object with isError set to false.
      */
-    private GETClientDataResponse createSuccessResponse(JSONObject jsonObject) {
+    public GETClientDataResponse createSuccessResponse(JSONObject jsonObject) {
         return GETClientDataResponse.success(jsonObject);
     }
 
@@ -205,37 +205,5 @@ public class GETClient {
         } catch (IOException e) {
             System.err.println("IO Error: An IO Exception occurred - " + e.getMessage());
         }
-    }
-}
-
-class GETClientDataResponse {
-    private final boolean isError;
-    private final String errorMessage;
-    private final JSONObject data;
-
-    private GETClientDataResponse(boolean isError, String errorMessage, JSONObject data) {
-        this.isError = isError;
-        this.errorMessage = errorMessage;
-        this.data = data;
-    }
-
-    public static GETClientDataResponse error(String errorMessage) {
-        return new GETClientDataResponse(true, errorMessage, null);
-    }
-
-    public static GETClientDataResponse success(JSONObject data) {
-        return new GETClientDataResponse(false, null, data);
-    }
-
-    public boolean isError() {
-        return isError;
-    }
-
-    public String getErrorMessage() {
-        return errorMessage;
-    }
-
-    public JSONObject getData() {
-        return data;
     }
 }

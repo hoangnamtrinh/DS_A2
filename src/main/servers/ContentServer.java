@@ -94,7 +94,7 @@ public class ContentServer {
     public void sendPutRequest(String serverName, int portNumber) {
         try {
             JSONObject jsonData = new JSONObject(data.toString());
-            jsonData.put("ServerID", contentServerId);
+            jsonData.put("ServerId", contentServerId);
 
             clientSocket = new Socket(serverName, portNumber);
             out = new PrintWriter(clientSocket.getOutputStream(), true);
