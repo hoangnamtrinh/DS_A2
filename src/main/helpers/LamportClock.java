@@ -47,4 +47,13 @@ public class LamportClock {
     public int getCurrentTime() {
         return time;
     }
+
+    /**
+     * Sets the current time on the Lamport clock.
+     *
+     * @return The current time.
+     */
+    public void setCurrentTime(int time) {
+        this.time = time;
+    }
 }

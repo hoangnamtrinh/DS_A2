@@ -1,12 +1,18 @@
 package main.servers;
 
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.*;
 import main.helpers.LamportClock;
 import main.services.SocketService;
 import main.services.SocketServiceImpl;
+
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
@@ -19,8 +25,11 @@ public class AggregationServer {
     private Thread clientThread;
     // This represents a data structure that maps stationId with a priority queue of
     // weather data. Priority queue is used here so that weather data with the
-    // latest timestamp will always be at top. ConcurrentHashMa
+    // latest timestamp will always be at top.
     private Map<String, PriorityQueue<WeatherData>> weatherDataMap = new HashMap<>();
+    // This represents a data structure that maps a content serverId with the last
+    // time it sent a put request to the aggregation server.
+    private Map<String, Long> serverTimestampMap = new HashMap<>();
     private LinkedBlockingQueue<Socket> requestQueue = new LinkedBlockingQueue<>();
     private String mostRecentStationId;
     private int latestPutTimestamp = -1;
@@ -29,6 +38,15 @@ public class AggregationServer {
         int port = parsePortFromArgs(args);
         SocketService socketService = new SocketServiceImpl();
         AggregationServer aggregationServer = new AggregationServer(socketService);
+
+        // Get the path to data.json
+        String currentDirectory = System.getProperty("user.dir");
+        String filePath = currentDirectory + File.separator + "data.json";
+
+        // Start the state-saving thread
+        StateSaverThread stateSaverThread = new StateSaverThread(aggregationServer,
+                filePath, 15000);
+        stateSaverThread.start();
         aggregationServer.start(port);
     }
 
@@ -148,7 +166,6 @@ public class AggregationServer {
      */
     public boolean storeWeatherData(JSONObject weatherDataJSON, int lamportTime, String serverId) {
         String stationId = extractStationId(weatherDataJSON);
-        System.out.println("StationId test: " + stationId);
         if (stationId == null || stationId.isEmpty()) {
             return false;
         }
@@ -156,6 +173,7 @@ public class AggregationServer {
         // Update latest station id if this is the latest put request
         if (lamportTime > latestPutTimestamp) {
             mostRecentStationId = stationId;
+            latestPutTimestamp = lamportTime;
         }
         WeatherData weatherData = new WeatherData(weatherDataJSON, lamportTime, serverId);
         // Check if the weatherDataMap contains an entry for the stationId.
@@ -256,12 +274,16 @@ public class AggregationServer {
             return "404 Data Not Found";
         }
 
+        // Make sure that only data from server that comminicated within the last 30
+        // seconds is taken into account.
         Optional<WeatherData> weatherData = weatherDataQueue.stream()
-                .filter(data -> data.getTimestamp() <= lamportTime)
+                .filter(data -> data.getTimestamp() <= lamportTime
+                        && (serverTimestampMap.get(data.getServerId()) != null
+                                && serverTimestampMap.get(data.getServerId()) >= System.currentTimeMillis() - 30000))
                 .findFirst();
 
         if (!weatherData.isPresent()) {
-            return "404 Data Not Found";
+            return "404 Data Not Found 1";
         }
 
         return weatherData.get().getWeatherData().toString();
@@ -276,7 +298,6 @@ public class AggregationServer {
      */
     private String handlePutRequest(Map<String, String> headers, String content) {
         int lamportTime = Integer.parseInt(headers.getOrDefault("LamportClock", "0"));
-        System.out.println("Tesst LP" + lamportTime);
         lamportClock.receiveLCTime(lamportTime);
 
         String serverId = headers.get("ServerId");
@@ -291,6 +312,7 @@ public class AggregationServer {
             return "400 JSON Error";
         }
 
+        serverTimestampMap.put(serverId, System.currentTimeMillis());
         if (storeWeatherData(weatherDataJSON, lamportTime, serverId)) {
             return "200 OK";
         } else {
@@ -319,6 +341,55 @@ public class AggregationServer {
      */
     private void printMessage(String message) {
         System.out.println(message);
+    }
+
+    // Getter and Setter methods for state variables
+    public Map<String, PriorityQueue<WeatherData>> getWeatherDataMap() {
+        return weatherDataMap;
+    }
+
+    public void setWeatherDataMap(Map<String, PriorityQueue<WeatherData>> weatherDataMap) {
+        this.weatherDataMap = weatherDataMap;
+    }
+
+    public LinkedBlockingQueue<Socket> getRequestQueue() {
+        return requestQueue;
+    }
+
+    public void setRequestQueue(LinkedBlockingQueue<Socket> requestQueue) {
+        this.requestQueue = requestQueue;
+    }
+
+    public String getMostRecentStationId() {
+        return mostRecentStationId;
+    }
+
+    public void setMostRecentStationId(String mostRecentStationId) {
+        this.mostRecentStationId = mostRecentStationId;
+    }
+
+    public int getLatestPutTimestamp() {
+        return latestPutTimestamp;
+    }
+
+    public void setLatestPutTimestamp(int latestPutTimestamp) {
+        this.latestPutTimestamp = latestPutTimestamp;
+    }
+
+    public Map<String, Long> getServerTimestamMap() {
+        return serverTimestampMap;
+    }
+
+    public void setServerTimestamMap(Map<String, Long> serverTimestampMap) {
+        this.serverTimestampMap = serverTimestampMap;
+    }
+
+    public int getLamportTime() {
+        return this.lamportClock.getCurrentTime();
+    }
+
+    public void setLamportTime(int time) {
+        this.lamportClock.setCurrentTime(time);
     }
 }
 
@@ -358,5 +429,161 @@ class WeatherData implements Comparable<WeatherData> {
     public int compareTo(WeatherData other) {
         // Compare WeatherData objects based on their Lamport clock times
         return Integer.compare(this.timestamp, other.timestamp);
+    }
+}
+
+class StateSaverThread extends Thread {
+    private ServerStateHandler stateHandler;
+    private String filePath;
+    private long saveIntervalMillis;
+
+    public StateSaverThread(AggregationServer server, String filePath, long saveIntervalMillis) {
+        this.stateHandler = new ServerStateHandler(server);
+        this.filePath = filePath;
+        this.saveIntervalMillis = saveIntervalMillis;
+    }
+
+    @Override
+    public void run() {
+        try {
+            stateHandler.loadServerState(filePath);
+            System.out.println("Sever state loaded.\n");
+        } catch (Exception e) {
+            File file = new File(filePath);
+            if (file.exists()) {
+                System.out.println("Can't load server data.");
+            } else {
+                System.out.println("File does not exist at the specified path.");
+            }
+        }
+        while (true) {
+            stateHandler.saveServerState(filePath);
+            try {
+                Thread.sleep(saveIntervalMillis);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+
+class ServerStateHandler {
+    private AggregationServer server;
+
+    public ServerStateHandler(AggregationServer server) {
+        this.server = server;
+    }
+
+    public AggregationServer getServer() {
+        return this.server;
+    }
+
+    public void saveServerState(String filePath) {
+        try (FileWriter fileWriter = new FileWriter(filePath)) {
+            JSONObject stateJson = new JSONObject();
+            Map<String, PriorityQueue<WeatherData>> weatherData = new HashMap<>(server.getWeatherDataMap());
+            WeatherDataWriter weatherDataWriter = new WeatherDataWriter(weatherData);
+            JSONObject weatherObject = weatherDataWriter.writeWeatherDataToObject();
+            JSONObject serverTimestampMapObject = new JSONObject(server.getServerTimestamMap());
+
+            stateJson.put("weatherDataMap", weatherObject);
+            stateJson.put("mostRecentStationId", server.getMostRecentStationId());
+            stateJson.put("latestPutTimestamp", server.getLatestPutTimestamp());
+            stateJson.put("lamportTime", server.getLamportTime());
+            stateJson.put("serverTimestampMap", serverTimestampMapObject);
+
+            fileWriter.write(stateJson.toString());
+            System.out.println("Server state saved to data.json file.\n");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void loadServerState(String fileName) {
+        String filePath = "data.json";
+        try {
+            // Read JSON data from the file as a string
+            String jsonContent = new String(Files.readAllBytes(Paths.get(filePath)));
+
+            // Parse the JSON string into a JSONObject
+            JSONObject jsonObject = new JSONObject(jsonContent);
+
+            // Extract the values
+            int latestPutTimestamp = jsonObject.getInt("latestPutTimestamp");
+            String mostRecentStationId = jsonObject.getString("mostRecentStationId");
+            int lamportTime = jsonObject.getInt("lamportTime");
+            JSONObject serverTimestampMap = jsonObject.getJSONObject("serverTimestampMap");
+            JSONObject weatherDataMap = jsonObject.getJSONObject("weatherDataMap");
+
+            Map<String, PriorityQueue<WeatherData>> deserialisedWeatherDataMap = new HashMap<>();
+            for (String stationId : weatherDataMap.keySet()) {
+                JSONArray stationData = weatherDataMap.getJSONArray(stationId);
+                PriorityQueue<WeatherData> weatherDataQueue = new PriorityQueue<>();
+
+                // Iterate through the JSON array to reconstruct the priority queue
+                for (int i = 0; i < stationData.length(); i++) {
+                    JSONObject weatherJson = stationData.getJSONObject(i);
+                    int timestamp = weatherJson.getInt("timestamp");
+                    String serverId = weatherJson.getString("ServerId");
+                    WeatherData weatherData = new WeatherData(weatherJson, timestamp, serverId);
+                    weatherDataQueue.offer(weatherData);
+                }
+
+                // Add the reconstructed data to the map
+                deserialisedWeatherDataMap.put(stationId, weatherDataQueue);
+            }
+
+            // Create a HashMap to store the JSON object content
+            Map<String, Long> deserialisedServerTimestampMap = new HashMap<>();
+
+            // Use a for loop to iterate through the keys
+            for (String key : serverTimestampMap.keySet()) {
+                Long value = serverTimestampMap.getLong(key);
+                deserialisedServerTimestampMap.put(key, value);
+            }
+            server.setLatestPutTimestamp(latestPutTimestamp);
+            server.setMostRecentStationId(mostRecentStationId);
+            server.setLamportTime(lamportTime);
+            server.setWeatherDataMap(deserialisedWeatherDataMap);
+            server.setServerTimestamMap(deserialisedServerTimestampMap);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+class WeatherDataWriter {
+
+    private Map<String, PriorityQueue<WeatherData>> data;
+
+    public WeatherDataWriter(Map<String, PriorityQueue<WeatherData>> weatherDataMap) {
+        this.data = weatherDataMap;
+    }
+
+    public JSONObject writeWeatherDataToObject() {
+        // Create a JSONObject to store the data
+        JSONObject jsonData = new JSONObject();
+
+        // Iterate through the map entries
+        for (Map.Entry<String, PriorityQueue<WeatherData>> entry : data.entrySet()) {
+            String stationId = entry.getKey();
+            PriorityQueue<WeatherData> weatherDataQueue = new PriorityQueue<WeatherData>(entry.getValue());
+
+            // Create a JSONArray to store weather data for this server
+            JSONArray serverDataArray = new JSONArray();
+
+            // Iterate through the PriorityQueue and add each WeatherData entry to the array
+            while (!weatherDataQueue.isEmpty()) {
+                WeatherData weatherData = weatherDataQueue.poll();
+                JSONObject weatherJson = weatherData.getWeatherData();
+                int timestamp = weatherData.getTimestamp();
+                weatherJson.put("timestamp", timestamp);
+                serverDataArray.put(weatherJson);
+            }
+
+            // Add the server data array to the JSON object with the server ID as the key
+            jsonData.put(stationId, serverDataArray);
+        }
+        return jsonData;
     }
 }
