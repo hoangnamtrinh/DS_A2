@@ -60,7 +60,7 @@ public class ContentServer {
             throw new IOException("Unable to load weather data from file: " + filePath);
         }
 
-        sendPutRequest(serverName, portNumber);
+        sendPutRequestWithRetry(serverName, portNumber);
     }
 
     /**
@@ -86,38 +86,55 @@ public class ContentServer {
     }
 
     /**
-     * Send a PUT request with weather data to the specified server.
+     * Send a PUT request with weather data to the specified server with retry.
      *
      * @param serverName The server's name.
      * @param portNumber The server's port number.
      */
-    public void sendPutRequest(String serverName, int portNumber) {
-        try {
-            JSONObject jsonData = new JSONObject(data.toString());
-            jsonData.put("ServerId", contentServerId);
+    public void sendPutRequestWithRetry(String serverName, int portNumber) {
+        int maxRetries = 3; // Maximum number of retry attempts
+        int retryIntervalMillis = 15000; // 15 seconds in milliseconds
 
-            clientSocket = new Socket(serverName, portNumber);
-            out = new PrintWriter(clientSocket.getOutputStream(), true);
-            in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-            String serverLC = in.readLine();
-            int timestamp = Integer.parseInt(serverLC);
+        for (int retryCount = 0; retryCount < maxRetries; retryCount++) {
+            try {
+                JSONObject jsonData = new JSONObject(data.toString());
+                jsonData.put("ServerId", contentServerId);
 
-            // Send request to the server
-            String putRequest = buildPutRequest(serverName, jsonData, timestamp);
-            out.println(putRequest);
+                clientSocket = new Socket(serverName, portNumber);
+                out = new PrintWriter(clientSocket.getOutputStream(), true);
+                in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+                String serverLC = in.readLine();
+                int timestamp = Integer.parseInt(serverLC);
 
-            String response = receiveResponseFromServer(in);
+                // Send request to the server
+                String putRequest = buildPutRequest(serverName, jsonData, timestamp);
+                out.println(putRequest);
 
-            if (response != null && (response.contains("200 OK") || response.contains("201 OK"))) {
-                System.out.println("Weather data sent to server.");
-            } else {
-                System.err.println("Error when sending weather data to server: " + response);
+                String response = receiveResponseFromServer(in);
+
+                if (response != null && (response.contains("200 OK") || response.contains("201 OK"))) {
+                    System.out.println("Weather data sent to server.");
+                    return; // Successful response, no need to retry
+                } else {
+                    System.err.println("Error when sending weather data to server: " + response);
+                }
+
+                closeClient(in, out, clientSocket);
+            } catch (IOException e) {
+                System.err.println("Server error: " + e.getMessage());
             }
 
-            closeClient(in, out, clientSocket);
-        } catch (Exception e) {
-            System.err.println("Server error: " + e.getMessage());
+            if (retryCount < maxRetries - 1) {
+                System.out.println("Retrying in 15 seconds...");
+                try {
+                    Thread.sleep(retryIntervalMillis);
+                } catch (InterruptedException e) {
+                    System.err.println("Retry delay interrupted.");
+                }
+            }
         }
+
+        System.err.println("Failed to send weather data after " + maxRetries + " retries.");
     }
 
     private String receiveResponseFromServer(BufferedReader in) throws IOException {

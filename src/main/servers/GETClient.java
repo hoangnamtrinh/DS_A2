@@ -13,7 +13,8 @@ import org.json.JSONObject;
 import org.json.JSONTokener;
 
 /**
- * The GETClient class represents a client that sends a GET request to a server and processes the response.
+ * The GETClient class represents a client that sends a GET request to a server
+ * and processes the response.
  */
 public class GETClient {
     private final String serverID;
@@ -44,7 +45,7 @@ public class GETClient {
             // Initialise client, send a request to the aggregation server and display the
             // response
             GETClient client = new GETClient();
-            GETClientDataResponse response = client.retrieveWeatherData(serverName, portNumber, stationId);
+            GETClientDataResponse response = client.retrieveWeatherDataWithRetry(serverName, portNumber, stationId);
             client.processResponse(response);
 
             // socketService.closeClient();
@@ -83,7 +84,7 @@ public class GETClient {
     }
 
     /**
-     * Retrieves weather data from the server.
+     * Retrieves weather data from the server with retry.
      *
      * @param serverName The name of the server.
      * @param portNumber The port number of the server.
@@ -92,28 +93,49 @@ public class GETClient {
      * @throws IOException   If an I/O error occurs.
      * @throws JSONException If a JSON error occurs.
      */
-    public GETClientDataResponse retrieveWeatherData(String serverName, int portNumber, String stationId)
+    public GETClientDataResponse retrieveWeatherDataWithRetry(String serverName, int portNumber, String stationId)
             throws IOException, JSONException {
-        // Create a client socket and initialize input and output streams.
-        clientSocket = new Socket(serverName, portNumber);
-        out = new PrintWriter(clientSocket.getOutputStream(), true);
-        in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-        String serverLC = in.readLine();
-        int timestamp = Integer.parseInt(serverLC);
-        String getRequest = buildGetRequest(this.serverID, timestamp, stationId);
+        int maxRetries = 3; // Maximum number of retry attempts
+        int retryIntervalMillis = 15000; // 15 seconds in milliseconds
 
-        // Send request to the server
-        out.println(getRequest);
+        for (int retryCount = 0; retryCount < maxRetries; retryCount++) {
+            try {
+                // Create a client socket and initialize input and output streams.
+                clientSocket = new Socket(serverName, portNumber);
+                out = new PrintWriter(clientSocket.getOutputStream(), true);
+                in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+                String serverLC = in.readLine();
+                int timestamp = Integer.parseInt(serverLC);
+                String getRequest = buildGetRequest(this.serverID, timestamp, stationId);
 
-        String responseStr = receiveResponseFromServer(in);
+                // Send request to the server
+                out.println(getRequest);
 
-        if (responseStr.startsWith("400") || responseStr.startsWith("404") || responseStr.startsWith("500")) {
-            return createErrorResponse(responseStr);
+                String responseStr = receiveResponseFromServer(in);
+
+                if (responseStr.startsWith("400") || responseStr.startsWith("404") || responseStr.startsWith("500")) {
+                    return createErrorResponse(responseStr);
+                }
+
+                JSONObject jsonObject = parseJsonResponse(responseStr);
+                closeClient(in, out, clientSocket);
+                return createSuccessResponse(jsonObject);
+            } catch (IOException e) {
+                System.err.println("Server error: " + e.getMessage());
+            }
+
+            if (retryCount < maxRetries - 1) {
+                System.out.println("Retrying in 15 seconds...");
+                try {
+                    Thread.sleep(retryIntervalMillis);
+                } catch (InterruptedException e) {
+                    System.err.println("Retry delay interrupted.");
+                }
+            }
         }
 
-        JSONObject jsonObject = parseJsonResponse(responseStr);
-        closeClient(in, out, clientSocket);
-        return createSuccessResponse(jsonObject);
+        System.err.println("Failed to retrieve weather data after " + maxRetries + " retries.");
+        return null; // Return null to indicate failure after retries
     }
 
     /**
@@ -189,8 +211,8 @@ public class GETClient {
     /**
      * Closes the client's input, output streams, and socket.
      *
-     * @param in          The BufferedReader for input.
-     * @param out         The PrintWriter for output.
+     * @param in           The BufferedReader for input.
+     * @param out          The PrintWriter for output.
      * @param clientSocket The client socket to be closed.
      */
     public void closeClient(BufferedReader in, PrintWriter out, Socket clienSocket) {
