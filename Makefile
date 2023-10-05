@@ -19,8 +19,12 @@ SOURCES = $(SRC_DIR)/servers/AggregationServer.java \
 CLASSES = $(patsubst $(SRC_DIR)/%.java,$(BIN_DIR)/%.class,$(SOURCES))
 
 TEST_SOURCES = src/tests/helpers/JSONParserTest.java \
+							 src/tests/helpers/LamportClockTest.java	\
 							 src/tests/services/SocketServiceImplTest.java \
-							 src/tests/servers/GETClientTest.java	
+							 src/tests/servers/GETClientTest.java	\
+							 src/tests/servers/ContentServerTest.java	\
+							 src/tests/servers/AggregationServerTest.java	\
+							#  src/tests/servers/IntegrationTest.java	
 
 TEST_MAIN_CLASS = org.junit.platform.console.ConsoleLauncher
 

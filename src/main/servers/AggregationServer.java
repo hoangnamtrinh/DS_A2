@@ -23,18 +23,26 @@ public class AggregationServer {
     private SocketService socketService;
     private LamportClock lamportClock;
     private Thread clientThread;
-    // This represents a data structure that maps stationId with a priority queue of
-    // weather data. Priority queue is used here so that weather data with the
-    // latest timestamp will always be at top.
+
+    /**
+     * This represents a data structure that maps stationId with a priority queue of
+     * weather data. Priority queue is used here so that weather data with the
+     * latest timestamp will always be at top.
+     */
     private Map<String, PriorityQueue<WeatherData>> weatherDataMap = new HashMap<>();
-    // This represents a data structure that maps a content serverId with the last
-    // time it sent a put request to the aggregation server.
+
+    /**
+     * This represents a data structure that maps a content serverId with the last
+     * time it sent a put request to the aggregation server.
+     */
     private Map<String, Long> serverTimestampMap = new HashMap<>();
+
     private LinkedBlockingQueue<Socket> requestQueue = new LinkedBlockingQueue<>();
     private String mostRecentStationId;
     private int latestPutTimestamp = -1;
 
     public static void main(String[] args) {
+        int saveIntervalMillis = 15 * 1000; // 15 seconds;
         int port = parsePortFromArgs(args);
         SocketService socketService = new SocketServiceImpl();
         AggregationServer aggregationServer = new AggregationServer(socketService);
@@ -45,7 +53,7 @@ public class AggregationServer {
 
         // Start the state-saving thread
         StateSaverThread stateSaverThread = new StateSaverThread(aggregationServer,
-                filePath, 15000);
+                filePath, saveIntervalMillis);
         stateSaverThread.start();
         aggregationServer.start(port);
     }
@@ -335,6 +343,30 @@ public class AggregationServer {
     }
 
     /**
+     * Stops the aggregation server.
+     */
+    public void stopServer() {
+        printMessage("Stopping server...");
+
+        // Interrupt the client thread to stop accepting new connections
+        clientThread.interrupt();
+
+        // Close the server socket to stop accepting new connections
+        socketService.closeServer();
+
+        // Optionally, you can wait for the client thread to finish
+        try {
+            clientThread.join();
+        } catch (InterruptedException e) {
+            System.err.println("Interrupted while waiting for the client thread to finish.");
+        }
+
+        // Optionally, you can perform any cleanup or shutdown operations here
+
+        printMessage("Server stopped.");
+    }
+
+    /**
      * Prints a message to the console.
      *
      * @param message The message to be printed.
@@ -393,6 +425,10 @@ public class AggregationServer {
     }
 }
 
+/**
+ * This data structure provides a way to compare weather data based on their
+ * lamport clock timestamp so that we can use it in a priority queue.
+ */
 class WeatherData implements Comparable<WeatherData> {
     // Weather data as a JSON object
     private JSONObject weatherData;
@@ -443,6 +479,9 @@ class StateSaverThread extends Thread {
         this.saveIntervalMillis = saveIntervalMillis;
     }
 
+    /**
+     * Runs the StateSaverThread, loading server state and periodically saving it.
+     */
     @Override
     public void run() {
         try {
@@ -478,6 +517,11 @@ class ServerStateHandler {
         return this.server;
     }
 
+    /**
+     * Saves the server state to a JSON file.
+     *
+     * @param filePath The path to the file where the state will be saved.
+     */
     public void saveServerState(String filePath) {
         try (FileWriter fileWriter = new FileWriter(filePath)) {
             JSONObject stateJson = new JSONObject();
@@ -499,6 +543,11 @@ class ServerStateHandler {
         }
     }
 
+    /**
+     * Loads the server state from a JSON file.
+     *
+     * @param fileName The name of the file from which to load the state.
+     */
     public void loadServerState(String fileName) {
         String filePath = "data.json";
         try {
@@ -524,6 +573,7 @@ class ServerStateHandler {
                 for (int i = 0; i < stationData.length(); i++) {
                     JSONObject weatherJson = stationData.getJSONObject(i);
                     int timestamp = weatherJson.getInt("timestamp");
+                    weatherJson.remove("timestamp");
                     String serverId = weatherJson.getString("ServerId");
                     WeatherData weatherData = new WeatherData(weatherJson, timestamp, serverId);
                     weatherDataQueue.offer(weatherData);
@@ -552,6 +602,9 @@ class ServerStateHandler {
     }
 }
 
+/**
+ * A helper class for writing WeatherData to a JSON object.
+ */
 class WeatherDataWriter {
 
     private Map<String, PriorityQueue<WeatherData>> data;
@@ -560,6 +613,11 @@ class WeatherDataWriter {
         this.data = weatherDataMap;
     }
 
+    /**
+     * Writes weather data to a JSON object.
+     *
+     * @return The JSON object representing the weather data.
+     */
     public JSONObject writeWeatherDataToObject() {
         // Create a JSONObject to store the data
         JSONObject jsonData = new JSONObject();

@@ -10,8 +10,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
 import main.helpers.JSONParser;
-import main.services.SocketService;
-import main.services.SocketServiceImpl;
 import org.json.JSONObject;
 
 public class ContentServer {
@@ -26,12 +24,12 @@ public class ContentServer {
      *
      * @param socketService The SocketService implementation to use.
      */
-    public ContentServer(SocketService socketService) {
+    public ContentServer() {
         this.contentServerId = UUID.randomUUID().toString();
     }
 
     public static void main(String[] args) {
-        ContentServer contentServer = new ContentServer(new SocketServiceImpl());
+        ContentServer contentServer = new ContentServer();
         try {
             contentServer.start(args);
         } catch (Exception e) {
@@ -104,7 +102,15 @@ public class ContentServer {
                 out = new PrintWriter(clientSocket.getOutputStream(), true);
                 in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                 String serverLC = in.readLine();
-                int timestamp = Integer.parseInt(serverLC);
+
+                int timestamp = -1;
+
+                // Attempt to parse the received number
+                try {
+                    timestamp = Integer.parseInt(serverLC);
+                } catch (NumberFormatException e) {
+                    System.err.println("Error parsing Lamport Clock time from server: " + e.getMessage());
+                }
 
                 // Send request to the server
                 String putRequest = buildPutRequest(serverName, jsonData, timestamp);
@@ -167,7 +173,7 @@ public class ContentServer {
      * @param jsonData   The weather data as a JSON object.
      * @return The PUT request string.
      */
-    private String buildPutRequest(String serverName, JSONObject jsonData, int timeStamp) {
+    public String buildPutRequest(String serverName, JSONObject jsonData, int timeStamp) {
         return String.format("PUT /uploadData HTTP/1.1\r\n" +
                 "ServerId: %s\r\n" +
                 "LamportClock: %d\r\n" +
@@ -189,5 +195,9 @@ public class ContentServer {
         } catch (IOException e) {
             System.err.println("IO Error: An IO Exception occurred - " + e.getMessage());
         }
+    }
+
+    public void setData(JSONObject data) {
+        this.data = data;
     }
 }
