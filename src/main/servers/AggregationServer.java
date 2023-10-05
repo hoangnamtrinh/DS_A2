@@ -354,14 +354,11 @@ public class AggregationServer {
         // Close the server socket to stop accepting new connections
         socketService.closeServer();
 
-        // Optionally, you can wait for the client thread to finish
         try {
             clientThread.join();
         } catch (InterruptedException e) {
             System.err.println("Interrupted while waiting for the client thread to finish.");
         }
-
-        // Optionally, you can perform any cleanup or shutdown operations here
 
         printMessage("Server stopped.");
     }
