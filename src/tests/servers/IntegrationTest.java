@@ -19,9 +19,9 @@ public class IntegrationTest {
     @BeforeAll
     public static void setup() {
         // Start the AggregationServer
-        aggregationServer = new AggregationServer(new SocketServiceImpl()); // Assuming AggregationServer is the correct class
+        aggregationServer = new AggregationServer(new SocketServiceImpl());
         try {
-            aggregationServer.start(8080); // Assuming the server is running on port 8080
+            aggregationServer.start(8080);
         } catch (Exception e) {
             e.printStackTrace();
         }

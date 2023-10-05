@@ -72,7 +72,6 @@ public class AggregationServerTest {
 
   @Test
   public void testHandleGetRequestWithValidData() {
-    // Assuming you have a valid GET request in the correct format
     String validGetRequest = "GET /getWeatherData HTTP/1.1\r\n" +
         "LamportClock: 2\r\n" +
         "StationId: station123\r\n" +
@@ -92,8 +91,6 @@ public class AggregationServerTest {
 
   @Test
   public void testHandleGetRequestWithInvalidStationId() {
-    // Assuming you have a valid GET request in the correct format with an invalid
-    // StationId
     String invalidStationIdRequest = "GET /getWeatherData HTTP/1.1\r\n" +
         "LamportClock: 12345\r\n" +
         "StationId: invalidStation\r\n" +
@@ -131,7 +128,6 @@ public class AggregationServerTest {
 
   @Test
   public void testHandleGetRequestWithNoWeatherData() {
-    // Assuming you have a valid GET request in the correct format
     String validGetRequest = "GET /getWeatherData HTTP/1.1\r\n" +
         "LamportClock: 2\r\n" +
         "StationId: station123\r\n" +
@@ -167,13 +163,11 @@ public class AggregationServerTest {
 
   @Test
   public void testHandleGetRequestWithOldLamportClock() {
-    // Assuming you have a valid GET request in the correct format
     String validGetRequest = "GET /getWeatherData HTTP/1.1\r\n" +
         "LamportClock: 1\r\n" +
         "StationId: station123\r\n" +
         "\r\n";
 
-    // Assuming that the serverTimestampMap has a recent entry for "TestServer"
     Map<String, Long> serverTimestampMap = new HashMap<>();
     serverTimestampMap.put("TestServer", System.currentTimeMillis() - 10);
     aggregationServer.setServerTimestamMap(serverTimestampMap);
@@ -226,8 +220,6 @@ public class AggregationServerTest {
 
   @Test
   public void testHandleGetRequestWithNoLamportClock() {
-    // Assuming you have a valid GET request in the correct format but without a
-    // LamportClock header
     String getRequestWithoutLamportClock = "GET /getWeatherData HTTP/1.1\r\n" +
         "StationId: station123\r\n" +
         "\r\n";

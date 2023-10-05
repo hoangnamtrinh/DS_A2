@@ -26,7 +26,6 @@ public class ContentServerTest {
 
   @Test
   public void testIsDoneReadingData() throws Exception {
-    // Assuming you have a sample JSON file for testing
     String filePath = "weather1.txt";
 
     boolean result = contentServer.isDoneReadingData(filePath);
