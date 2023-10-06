@@ -24,6 +24,7 @@ TEST_SOURCES = src/tests/helpers/JSONParserTest.java \
 							 src/tests/servers/GETClientTest.java	\
 							 src/tests/servers/ContentServerTest.java	\
 							 src/tests/servers/AggregationServerTest.java	\
+							 src/tests/servers/EndToEndTest.java	
 
 TEST_MAIN_CLASS = org.junit.platform.console.ConsoleLauncher
 
@@ -59,6 +60,9 @@ content1: $(CLASSES)
 content2: $(CLASSES)
 	$(JAVA) $(CP_RUN) $(CONTENT) localhost:4567 weather2.txt
 
+content3: $(CLASSES)
+	$(JAVA) $(CP_RUN) $(CONTENT) localhost:4567 weather3.txt
+
 client1: $(CLASSES)
 	$(JAVA) $(CP_RUN) $(GETCLIENT) localhost:4567 IDS60901
 
@@ -66,6 +70,9 @@ client2: $(CLASSES)
 	$(JAVA) $(CP_RUN) $(GETCLIENT) localhost:4567 IDS60902
 
 client3: $(CLASSES)
+	$(JAVA) $(CP_RUN) $(GETCLIENT) localhost:4567 IDS60903
+
+client4: $(CLASSES)
 	$(JAVA) $(CP_RUN) $(GETCLIENT) localhost:4567
 
 .PHONY: clean all

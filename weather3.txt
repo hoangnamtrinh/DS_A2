@@ -1,6 +1,6 @@
-id:IDS60902
-name:Melbourne
-state: VIC
+id:IDS60903
+name:Sydney
+state: NSW
 time_zone:CST
 lat:-34.9
 lon:138.6

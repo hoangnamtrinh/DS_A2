@@ -291,7 +291,7 @@ public class AggregationServer {
                 .findFirst();
 
         if (!weatherData.isPresent()) {
-            return "404 Data Not Found 1";
+            return "404 Data Not Found";
         }
 
         return weatherData.get().getWeatherData().toString();

@@ -45,10 +45,7 @@ public class GETClient {
             // Initialise client, send a request to the aggregation server and display the
             // response
             GETClient client = new GETClient();
-            GETClientDataResponse response = client.retrieveWeatherDataWithRetry(serverName, portNumber, stationId);
-            client.processResponse(response);
-
-            // socketService.closeClient();
+            client.start(serverName, portNumber, stationId);
         } catch (IOException e) {
             System.err.println("IO Error: An IO Exception occurred - " + e.getMessage());
         } catch (JSONException e) {
@@ -56,6 +53,22 @@ public class GETClient {
         } catch (NumberFormatException e) {
             System.err.println("Number Format Error: Invalid port number - " + e.getMessage());
         }
+    }
+
+    /**
+     * Starts GetClient server.
+     *
+     * @param serverName The name of the server.
+     * @param portNumber The port number of the server.
+     * @param stationId  The station ID (optional).
+     * @return A GETClientDataResponse object representing the server's response.
+     * @throws IOException   If an I/O error occurs.
+     * @throws JSONException If a JSON error occurs.
+     */
+    public GETClientDataResponse start(String serverName, int portNumber, String stationId) throws JSONException, IOException {
+        GETClientDataResponse response = retrieveWeatherDataWithRetry(serverName, portNumber, stationId);
+        processResponse(response);
+        return response;
     }
 
     /**

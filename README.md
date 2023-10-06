@@ -53,8 +53,9 @@ make aggregation
 - **Content Servers:**
 
 ```shell
-make content1  # Starts content server 1
-make content2  # Starts content server 2
+make content1  # Starts content server 1 (weather1.txt)
+make content2  # Starts content server 2 (weather2.txt)
+make content3  # Starts content server 2 (weather3.txt)
 ```
 
 - **GET Clients:**
@@ -62,7 +63,8 @@ make content2  # Starts content server 2
 ```shell
 make client1  # GET client with station ID IDS60901
 make client2  # GET client with station ID IDS60902
-make client3  # GET client without stationId, this should return the latest weather data
+make client3  # GET client with station ID IDS60903
+make client4  # GET client without stationId, this should return the latest weather data
 ```
 
 ## Cleaning Up
@@ -92,6 +94,8 @@ This feature is realized by implementing a default retry policy involving three 
 ### Expired Data Handling in the Aggregation Server
 
 The Aggregation Server's mechanism for expunging expired data adopts a soft deletion approach. Instead of permanently removing expired data (hard delete), it is retained but marked as unavailable. This functionality is facilitated through a data structure that associates a serverId with the timestamp of its last communication with the aggregation system (measured in milliseconds). When a client submits a data retrieval request, the system not only checks the storage for the requested data but also verifies the timestamp to ensure that the returned data is not expired.
+
+This method is highly time-efficient, as it performs timestamp checking associated with the serverId in constant time, O(1). This efficiency allows us to efficiently handle a large number of requests while minimizing both the time spent and overhead associated with removing expired data.
 
 ### Ensuring Fault Tolerance
 
