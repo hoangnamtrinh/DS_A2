@@ -55,7 +55,7 @@ make aggregation
 ```shell
 make content1  # Starts content server 1 (weather1.txt)
 make content2  # Starts content server 2 (weather2.txt)
-make content3  # Starts content server 2 (weather3.txt)
+make content3  # Starts content server 3 (weather3.txt)
 ```
 
 - **GET Clients:**
